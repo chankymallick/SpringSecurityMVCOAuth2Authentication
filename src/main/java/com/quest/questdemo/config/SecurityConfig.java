@@ -21,6 +21,7 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 @EnableWebSecurity
@@ -39,11 +40,27 @@ public class SecurityConfig {
     private CustomOAuth2AuthenticationSuccessHandler customOAuth2AuthenticationSuccessHandler;
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/**") // Only apply this filter chain to /api/** paths
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
+                        .requestMatchers("/api/**").authenticated() // Restricting access to API endpoints
+                )
+                .csrf().disable()
+                .authenticationManager(authenticationManager(http.getSharedObject(AuthenticationManagerBuilder.class)))
+                .httpBasic(); // HTTP Basic authentication for API endpoints
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .addFilterBefore(customOAuth2VerificationFilter, org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter.class)
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                .requestMatchers("/LoginPage", "/WEB-INF/views/**").permitAll()
+                .requestMatchers("/LoginPage", "/WEB-INF/views/**", "/api/**").permitAll() // Exclude /api/** from web security
                 .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2Login -> oauth2Login
@@ -59,27 +76,13 @@ public class SecurityConfig {
                 .defaultSuccessUrl("/home", true)
                 .permitAll()
                 )
-                .httpBasic()//Allowing all paths to be accessed via HTTP Basic authentication(need to restrict only for API endpoints)
-                .and()
+
                 .logout(logout -> logout
                 .logoutSuccessUrl("/LoginPage")
                 .invalidateHttpSession(true)
                 .clearAuthentication(true)
                 .permitAll());
 
-
-        return http.build();
-    }
-
-    @Bean
-    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                        .requestMatchers("/api/**").authenticated() // Restricting access to API endpoints
-                )
-                .csrf().disable()
-                .authenticationManager(authenticationManager(http.getSharedObject(AuthenticationManagerBuilder.class)))
-                .httpBasic();//Allowing all paths to be accessed via HTTP Basic authentication(need to restrict only for API endpoints)
 
         return http.build();
     }
